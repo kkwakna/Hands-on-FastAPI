@@ -1,5 +1,11 @@
-from fastapi import Body, FastAPI, HTTPException
+from typing import List
+
+from fastapi import Body, FastAPI, HTTPException, Depends
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
+from .database.connection import get_db
+from .database.orm import ToDo
+from .database.repository import get_todos
 
 app = FastAPI()
 
@@ -29,13 +35,17 @@ todo_data = {
 # 전체 데이터 조회, 쿼리 파라미터 추가
 @app.get("/todos", status_code=200)
 # 쿼리 파라미터: str 또는 None
-def get_todos_handler(order: str | None = None):
-    ret = list(todo_data.values())
+def get_todos_handler(
+    order: str | None = None,
+    session: Session = Depends(get_db)
+):
+    todos: List[ToDo] = get_todos(session=session)
+
     # 쿼리 파라미터 값이 "DESC"인 경우 결과 역정렬 후 리턴
     if order and order == "DESC":
-        return ret[::-1]
+        return todos[::-1]
     # 아닌 경우, 바로 리턴
-    return ret
+    return todos
 
 #todos 아래에 {todo_id} path와 매핑
 @app.get("/todos/{todo_id}", status_code=200)
