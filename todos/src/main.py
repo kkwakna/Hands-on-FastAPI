@@ -3,9 +3,10 @@ from typing import List
 from fastapi import Body, FastAPI, HTTPException, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from .schema.response import ListToDoResponse, ToDoSchema
 from .database.connection import get_db
 from .database.orm import ToDo
-from .database.repository import get_todos
+from .database.repository import get_todo_by_todo_id, get_todos
 
 app = FastAPI()
 
@@ -38,22 +39,29 @@ todo_data = {
 def get_todos_handler(
     order: str | None = None,
     session: Session = Depends(get_db)
-):
+) -> ListToDoResponse:
     todos: List[ToDo] = get_todos(session=session)
 
     # 쿼리 파라미터 값이 "DESC"인 경우 결과 역정렬 후 리턴
-    if order and order == "DESC":
-        return todos[::-1]
+    if order and order == "DESC":  
+        return ListToDoResponse(
+        todos=[ToDoSchema.from_orm(todo) for todo in todos[::-1]]
+    )
     # 아닌 경우, 바로 리턴
-    return todos
+    return ListToDoResponse(
+        todos=[ToDoSchema.from_orm(todo) for todo in todos]
+    )
 
 #todos 아래에 {todo_id} path와 매핑
 @app.get("/todos/{todo_id}", status_code=200)
 # 입력 받은 {todo_id} 값으로 데이터 조회
-def get_todo_handler(todo_id: int):
-    todo = todo_data.get(todo_id)
+def get_todo_handler(
+    todo_id: int, 
+    session: Session = Depends(get_db)
+)-> ToDoSchema:
+    todo: ToDo | None = get_todo_by_todo_id(session=session, todo_id=todo_id)
     if todo:
-        return todo
+        return ToDoSchema.from_orm(todo)
     raise HTTPException(status_code=404, detail="Todo Not Found")
 
 # request body 검증을 위한 pydantic model 설계
